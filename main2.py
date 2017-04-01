@@ -1,6 +1,7 @@
 import webapp2
 import cgi
-import string
+import re
+
 
 header = """
     <!DOCTYPE html>
@@ -50,6 +51,19 @@ password_error = ''
 verify_error = ''
 email_error = ''
 
+USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
+PASS_RE = re.compile(r"^.{3,20}$")
+EMAIL_RE = re.compile(r'^[\S]+@[\S]+\.[\S]+$')
+
+def valid_username(username):
+    return username and USER_RE.match(username)
+
+def valid_password(password):
+    return password and PASS_RE.match(password)
+
+def valid_email(email):
+    return not email or EMAIL_RE.match(email)
+
 class MainHandler(webapp2.RequestHandler):
     def get(self):
 
@@ -58,6 +72,24 @@ class MainHandler(webapp2.RequestHandler):
         self.response.write(content)
 
     def post(self):
+        has_error = False
+
+        username_content_element = """<tr><td><label
+            for='username'>Username</label></td><td><input type='text' name='username'></td>
+            """
+
+        password_content_element = """
+            <tr><td><label for='password'>Password</label></td><td><input type='password' name='password'></td>
+            """
+
+        verify_content_element = """
+            <tr><td><label
+            for='verify'>Verify Password</label></td><td><input type='password' name='verify'></td>
+            """
+
+        email_content_element = """
+            <tr><td><label for='email'>Email   (optional)</label></td><td><input type='email'  name='email'></td>
+            """
 
         username = cgi.escape(self.request.get('username'))
         password = cgi.escape(self.request.get('password'))
@@ -69,33 +101,35 @@ class MainHandler(webapp2.RequestHandler):
         verify_error = ''
         email_error = ''
 
-        x = string.whitespace
-        if len(username) < 3 or len(username) > 20:
-            username_error = "<td class='error'>Username must be between 3 and 20 characters.</td></tr>"
 
-        for char in username:
-            if char in x:
-                username_error = username_error = "<td class='error'>Username may not contain any spaces.</td></tr>"
-
-        if username:
-            username_content_element ="""<tr><td><label
+        if not valid_username(username):
+            username_error = "<td class='error'>That's not a valid username.</td></tr>"
+            username_content_element = """<tr><td><label
                 for='username'>Username</label></td><td><input type='text' name='username' value='{0}'></td>
                 """.format(username)
+            has_error = True
 
-        if len(password)<3 or len(password) >20:
-            password_error = "<td class='error'>Password must be between 3 and 20 characters."
-
-        for char in password:
-            if char in x:
-                password_error = "<td class='error'>Password may not contain any spaces.</td></tr>"
+        if not valid_password(password):
+            password_error = "<td class='error'>That wasn't a valid password.</td></tr>"
+            has_error = True
 
         if password != verify:
-            password_error = "<td class='error'>Password does not match verification.</td></tr>"
+            verify_error = "<td class='error'>Your passwords didn't match.</td></tr>"
+            has_error = True
 
-        content = header + username_content_element + username_error + password_content_element + password_error + verify_content_element + verify_error + email_content_element + email_error + footer
+        if email and not valid_email(email):
+            email_error = "<td class='error'>That's not a valid email.</td></tr>"
+            email_content_element = """
+                <tr><td><label for='email'>Email   (optional)</label></td><td><input type='email'  name='email' value='{0}'></td>
+                """.format(email)
+            has_error = True
 
-        if username_error == '' and password_error == '' and verify_error == '':
+        if has_error == True:
+            content = header + username_content_element + username_error + password_content_element + password_error + verify_content_element + verify_error + email_content_element + email_error + footer
+
+        if has_error == False:
             self.redirect('/welcome?username=' + username)
+
         else:
             self.response.write(content)
 
